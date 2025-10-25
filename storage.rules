@@ -1,0 +1,88 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    // Check if user is a member of a tenant
+    function isTenantMember(tenantId) {
+      return firestore.exists(/databases/(default)/documents/tenants/$(tenantId)/tenantMembers/$(getUserId()));
+    }
+    
+    // Get user's role in a tenant
+    function getTenantMemberData(tenantId) {
+      return firestore.get(/databases/(default)/documents/tenants/$(tenantId)/tenantMembers/$(getUserId())).data;
+    }
+    
+    function hasRole(tenantId, roles) {
+      return isTenantMember(tenantId) && getTenantMemberData(tenantId).role in roles;
+    }
+    
+    function isOwnerOrAdmin(tenantId) {
+      return hasRole(tenantId, ['OWNER', 'ADMIN']);
+    }
+    
+    function isDoctor(tenantId) {
+      return hasRole(tenantId, ['DOCTOR']);
+    }
+    
+    function isCoordinator(tenantId) {
+      return hasRole(tenantId, ['COORDINATOR']);
+    }
+    
+    function isFinance(tenantId) {
+      return hasRole(tenantId, ['FINANCE']);
+    }
+
+    // Default deny all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Patient media files
+    match /tenants/{tenantId}/patients/{patientId}/media/{assetId} {
+      // Finance role cannot read patient media (HIPAA compliance)
+      allow read: if isSignedIn() && isTenantMember(tenantId) && (
+        isOwnerOrAdmin(tenantId) ||
+        isCoordinator(tenantId) ||
+        isDoctor(tenantId)
+      ) && !isFinance(tenantId);
+      
+      allow write: if isSignedIn() && isTenantMember(tenantId) && (
+        isOwnerOrAdmin(tenantId) ||
+        isCoordinator(tenantId) ||
+        isDoctor(tenantId)
+      );
+    }
+
+    // Proposal PDFs
+    match /tenants/{tenantId}/proposals/{proposalId}/pdfs/{fileName} {
+      allow read: if isSignedIn() && isTenantMember(tenantId);
+      
+      allow write: if isSignedIn() && isTenantMember(tenantId) && (
+        isOwnerOrAdmin(tenantId) ||
+        isDoctor(tenantId) ||
+        isCoordinator(tenantId)
+      );
+    }
+
+    // Tenant assets (logos, branding)
+    match /tenants/{tenantId}/assets/{fileName} {
+      allow read: if isSignedIn() && isTenantMember(tenantId);
+      allow write: if isOwnerOrAdmin(tenantId);
+    }
+
+    // User profile photos
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && userId == getUserId();
+    }
+  }
+}

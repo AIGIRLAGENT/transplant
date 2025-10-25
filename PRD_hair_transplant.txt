@@ -1,0 +1,345 @@
+PRD Multi tenant Hair Transplant Clinic Platform on Firebase
+1 Summary
+
+Single web app for many clinics. Data and branding isolated per clinic. Doctors see only their patients and notes. Doctors also see clinic wide aggregates without patient or lead detail. Owners and managers see full clinic data. AI generates simulated after images from standardized photos. Proposals are sent as branded PDFs with pricing and available dates. Calendar manages consults and surgeries. Analytics exist for doctors and for clinics.
+
+2 Tech stack
+
+1 React 18 with TypeScript and Vite.
+2 UI library shadcn ui with Tailwind CSS.
+3 Charts Recharts.
+4 State TanStack Query for server calls plus Zustand for view state.
+5 Auth Firebase Authentication email and password plus optional SSO and MFA.
+6 Backend Firebase Cloud Functions TypeScript.
+7 Database Cloud Firestore in Native mode.
+8 Storage Firebase Cloud Storage.
+9 Scheduling Cloud Scheduler calling HTTPS functions.
+10 PDF generation Headless Chromium in Cloud Functions.
+11 Email SendGrid or Mailgun via HTTP API. Swappable adapter.
+12 AI service external adapter named Google Nano Banana. HTTPS call with API key. Return presigned image URLs.
+13 Infrastructure environments dev and prod under separate Firebase projects.
+
+3 Branding and theming
+
+1 Base colors black white gray.
+2 Accent color per clinic configurable.
+3 Both light and dark themes.
+4 Glassmorphism surfaces with blur tokens and transparency while maintaining WCAG AA contrast for text.
+5 Button colors Primary uses clinic accent. Secondary uses gray. Destructive uses error red.
+6 Charts use accent as first series then auto generated tints.
+7 Theme object stored per tenant and injected at login.
+
+Example Tailwind theme tokens
+Primary foreground white
+Primary background accent
+Secondary foreground black
+Secondary background gray 200 in light and gray 800 in dark
+Card background rgba 255 255 255 0.08 with backdrop blur
+
+4 Roles and access
+
+1 Clinic Owner Admin full clinic read and write.
+2 Doctor my patients read and write my analytics and clinic aggregates without drilldown.
+3 Coordinator Sales assigned patients read and write scheduling and proposals.
+4 Finance read amounts and invoices no medical photos.
+5 Viewer read only clinic aggregates and calendar.
+
+Single login per person. One user can belong to multiple clinics. On login the user selects a clinic context. Tokens include tenantId and role.
+
+5 Firestore data model
+
+All documents live under tenants tenantId to simplify rules.
+
+1 tenants tenantId
+fields name slug domain themeObject emailFrom etc
+
+2 tenantMembers memberId
+fields userId role active doctorProfileId optional
+
+3 usersPublic userId
+fields displayName photoUrl phone country optional public info only
+
+4 doctors doctorId
+fields userId licenseNo specialties active capacity settings
+
+5 patients patientId
+fields primaryDoctorId piiEncrypted consentIds leadSource status funnelStage createdAt updatedAt sharedCare boolean
+
+6 imagingSessions sessionId under patients
+fields poses array captureQuality scores exif references
+subcollection assets assetId with urls types raw and simulated and metadata density hairline shape
+
+7 quotes quoteId
+fields patientId doctorId items zones graftCounts unitPrice tax discount total currency validity status version
+
+8 proposals proposalId
+fields quoteId pdfUrl status sentAt viewedAt acceptedAt expiryAt signerName signerEmail
+
+9 communications messageId
+fields channel email or sms to subject body provider status deliveredAt openedAt
+
+10 appointments apptId
+fields patientId doctorId type consult or surgery roomId teamIds start end status holdExpiresAt depositStatus
+
+11 surgeryCases caseId
+fields appointmentId graftsHarvested graftsPlaced zones meds complications notes photosRefs
+
+12 analyticsDaily dayId yyyymmdd at clinic scope
+fields totals per day consults proposals surgeries grafts revenue leadsSourceMap etc
+
+13 analyticsDoctorDaily dayId per doctor
+same fields as clinic but filtered to doctor
+
+14 auditLogs logId
+fields actorUserId action entity entityId ts ip
+
+15 calendarResources resourceId
+fields name type room chair technician availability calendar color
+
+6 Firestore security rules outline
+
+Enforce tenant isolation and role based access. Sample high level rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null }
+    function tenant() { return request.auth.token.tenantId }
+    function role() { return request.auth.token.role }
+    function isTenantDoc() { return request.resource.data.tenantId == tenant() }
+    function isMember() {
+      return exists(/databases/$(database)/documents/tenants/$(tenant())/tenantMembers/$(request.auth.uid));
+    }
+    function isDoctor() { return role() == 'DOCTOR' }
+    function isOwner() { return role() in ['OWNER','ADMIN'] }
+    function isCoordinator() { return role() == 'COORDINATOR' }
+    function isFinance() { return role() == 'FINANCE' }
+
+    match /tenants/{tenantId}/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if isSignedIn() && tenant() == tenantId && isMember();
+    }
+
+    match /tenants/{tenantId}/patients/{patientId} {
+      allow read: if isSignedIn() && tenant() == tenantId && isMember() &&
+        (
+          isOwner() ||
+          isCoordinator() ||
+          (isDoctor() && resource.data.primaryDoctorId == request.auth.uid) ||
+          (isDoctor() && resource.data.sharedCare == true)
+        );
+      allow create: if isSignedIn() && tenant() == tenantId && isMember() && (isOwner() || isCoordinator() || isDoctor());
+      allow update, delete: if isSignedIn() && tenant() == tenantId && isMember() &&
+        (
+          isOwner() ||
+          (isDoctor() && resource.data.primaryDoctorId == request.auth.uid)
+        );
+    }
+
+    match /tenants/{tenantId}/analyticsDaily/{dayId} {
+      allow read: if isSignedIn() && tenant() == tenantId && isMember();
+      allow write: if false; // only via Cloud Functions with admin SDK
+    }
+
+    match /tenants/{tenantId}/analyticsDoctorDaily/{dayId} {
+      allow read: if isSignedIn() && tenant() == tenantId && isMember() &&
+        (
+          isOwner() ||
+          resource.data.doctorId == request.auth.uid
+        );
+      allow write: if false;
+    }
+  }
+}
+
+7 Cloud Storage structure and rules
+
+Paths tenants tenantId patients patientId media assetId and tenants tenantId proposals proposalId pdfs file.pdf
+
+Rules ensure tenant match and ownership for medical photos. Doctors can read their patient media. Finance cannot read media.
+
+8 Pages and features
+
+1 Public home and login. Generic branding.
+2 Clinic switcher when user belongs to multiple clinics.
+3 Dashboard
+Doctor view shows today schedule quick stats my consults my proposals my surgeries this period sparkline charts and a Clinic totals card with aggregate only and rounded.
+Owner view shows clinic totals time series revenue grafts surgeries conversion funnels and top lead sources.
+4 Patients
+List with search and filters by stage and owner. Roles restrict rows.
+Detail with timeline notes images imaging sessions quotes proposals appointments and communications.
+5 Imaging
+Guided capture wizard front left right top crown with pose guide and distance hint. Upload to storage. Launch AI job. View simulated results grid side by side and approve to save.
+6 Quotes
+Builder with zones and graft counts price tax discounts and payment schedule. Versioning and status.
+7 Proposals
+Generate PDF preview with clinic branding. Send by email and sms. Track viewed and accepted.
+8 Calendar
+Day week month timeline. Resources filter. Create consult and surgery. Holds and deposits.
+9 Surgery case
+Checklist graft counts zones meds complications photos and post op plan.
+10 Analytics
+Doctors my analytics page with date windows seven thirty ninety one year all time. Metrics consults proposals surgeries grafts revenue conversion.
+Clinic analytics page for owners with totals trends funnels capacity and source attribution.
+Clinic totals page for doctors with aggregates only rounded and anti inference rules.
+11 Settings
+Clinic profile theme accent colors logo email templates roles and members invites.
+User profile name photo MFA devices calendar sync tokens.
+
+9 Analytics definitions
+
+1 Consult count number of consult appointments completed in window.
+2 Proposal sent count proposals with sentAt in window.
+3 Proposal view rate unique proposal viewed over proposals sent.
+4 Booked surgeries count of surgery appointments with status confirmed.
+5 Surgeries completed count with status done.
+6 Grafts placed sum of surgeryCases graftsPlaced.
+7 Revenue sum of proposals accepted totals or invoices posted.
+8 Conversion consult to surgery booked rate.
+9 Capacity used surgery hours booked over total available hours.
+10 Lead source mix pie by UTM or source field.
+
+Data generation
+Cloud Function aggregates daily per clinic and per doctor into analyticsDaily and analyticsDoctorDaily. Queries read aggregated docs and compute window totals.
+
+10 AI image pipeline
+
+1 Input standardized photos from imagingSessions.
+2 Cloud Function calls external Google Nano Banana API with patient photos and parameters density options and hairline style.
+3 The function polls job status then writes simulated assets to Storage and metadata to imagingSessions assets.
+4 Quality checks require face and scalp segmentation success flags before saving.
+5 All calls use environment variables for API base URL model name and API key.
+6 No patient images are logged or sent to third parties beyond the AI provider. Temp files are deleted after completion.
+
+Function stub
+
+export const runHairSim = onCall(async (req) => {
+  const { tenantId, patientId, sessionId, options } = req.data;
+  assertAuthAndTenant(context, tenantId);
+  const apiKey = process.env.HAIR_SIM_API_KEY;
+  const model = process.env.HAIR_SIM_MODEL;
+  const resp = await fetch(`${process.env.HAIR_SIM_BASE}/v1/jobs`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, inputs: options })
+  });
+  const job = await resp.json();
+  // poll and persist results
+});
+
+11 PDF generation workflow
+
+1 Build HTML template with clinic branding and theme tokens.
+2 Render in headless Chromium in a Function.
+3 Save PDF to Storage and write proposals proposalId pdfUrl.
+4 Send email with proposal link and tracking pixel.
+5 Record send log and update status.
+
+12 Email and SMS
+
+1 Email adapter interface with SendGrid or Mailgun implementation.
+2 SMS adapter with Twilio or local provider.
+3 Store provider response ids for delivery and open tracking.
+4 All templates per tenant with merge fields patient name clinic name price and dates.
+
+13 Calendar logic
+
+1 Appointments collection supports consult and surgery.
+2 Conflict checks run in a transaction using start end resource locks.
+3 Holds expire via Scheduler that calls a Function every five minutes to release stale holds.
+4 Optional two way sync later through Google Calendar. Tokens stored encrypted per user.
+
+14 Initialization and Firebase config
+
+Use the provided config in the web app. Add Analytics only in production.
+
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { getAnalytics, isSupported } from 'firebase/analytics';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCoyFYejvtWzSH2_PDwJ0JZUEn68uE-pIM",
+  authDomain: "transplant-35461.firebaseapp.com",
+  projectId: "transplant-35461",
+  storageBucket: "transplant-35461.firebasestorage.app",
+  messagingSenderId: "305267939101",
+  appId: "1:305267939101:web:4b5606d26077dda696b3f4",
+  measurementId: "G-ZZHPJH0PNR"
+};
+
+export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
+if (import.meta.env.PROD) { isSupported().then(s => s && getAnalytics(app)); }
+
+15 Serverless function list
+
+1 createTenant and seedTheme
+2 inviteMember and acceptInvite
+3 generateProposalPdf
+4 sendProposal and scheduleReminders
+5 runHairSim and pollHairSim
+6 nightlyAnalyticsAggregate
+7 releaseExpiredHolds
+8 exportCsv by role scoped
+
+16 UI flows
+
+1 Login and MFA then clinic selection if multiple.
+2 First run theme load and injection into Tailwind CSS variables.
+3 Navigation sidebar Dashboard Patients Imaging Quotes Proposals Calendar Analytics Settings.
+4 Route guards check role and tenant on every route.
+5 Error states show no access rather than empty grids.
+
+17 Testing
+
+1 Unit tests for access checks and calculations.
+2 Integration tests for Firestore rules using emulator.
+3 E2E tests for tenant isolation using Playwright with two tenants and two doctors.
+4 Load tests for analytics queries with cached and cold paths.
+
+18 Performance targets
+
+1 First meaningful paint under two seconds on 4G.
+2 Cold analytics page under three seconds then under one second from cache.
+3 AI job median under thirty seconds per session.
+4 Calendar create to confirm under two hundred milliseconds for local write then server confirmation.
+
+19 Security and compliance
+
+1 Enforce Auth required on all tenant paths.
+2 Store PII fields encrypted using client side or server side envelope keys.
+3 Mask medical photos for Finance role.
+4 Full audit log write on PII read and export using callable functions rather than direct reads where required.
+5 Region selection for Storage buckets and Functions aligned with clinic location.
+
+20 Acceptance criteria
+
+1 Tenant isolation proven by emulator tests that attempt cross tenant reads and fail.
+2 Doctors can read only their patients and their doctorDaily analytics.
+3 Doctors can read clinic aggregates collection that contains no patient ids and no per doctor fields and values are rounded.
+4 Owners can read full clinic data and drilldowns.
+5 Proposal PDFs match tenant theme and pass basic accessibility checks.
+6 Calendar prevents conflicts and releases holds on schedule.
+7 AI simulation runs end to end once API key is set and writes simulated assets to the patient session.
+8 Theme switch light and dark without layout breakage.
+9 Accent color change per tenant updates buttons charts and highlights.
+
+21 Implementation checklist for day one
+
+1 Initialize Firebase with provided config.
+2 Implement Firestore rules skeleton and pass emulator tests.
+3 Create collections tenants tenantMembers usersPublic patients and appointments.
+4 Build authentication flow and clinic switcher.
+5 Implement theme injection and glassmorphism components.
+6 Build Patients list and detail with role filtering.
+7 Build Quotes and Proposals including PDF function and email adapter.
+8 Build Calendar with conflict checks and holds.
+9 Build Analytics pages that read daily aggregates.
+10 Wire AI adapter with environment variables for Google Nano Banana and confirm stub works after API key is added.

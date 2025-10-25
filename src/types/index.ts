@@ -1,0 +1,329 @@
+// Tenant and User Types
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  domain?: string;
+  themeObject: ThemeObject;
+  emailFrom: string;
+  logo?: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ThemeObject {
+  accentColor: string; // hex color
+  logoUrl?: string;
+  lightMode: ThemeColors;
+  darkMode: ThemeColors;
+}
+
+export interface ThemeColors {
+  primary: string;
+  primaryForeground: string;
+  secondary: string;
+  secondaryForeground: string;
+  background: string;
+  foreground: string;
+  card: string;
+  cardForeground: string;
+  muted: string;
+  mutedForeground: string;
+  accent: string;
+  accentForeground: string;
+  destructive: string;
+  destructiveForeground: string;
+  border: string;
+  input: string;
+  ring: string;
+}
+
+// User and Member Types
+export type UserRole = 'OWNER' | 'ADMIN' | 'DOCTOR' | 'COORDINATOR' | 'FINANCE' | 'VIEWER';
+
+export interface TenantMember {
+  id: string;
+  userId: string;
+  tenantId: string;
+  role: UserRole;
+  active: boolean;
+  doctorProfileId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserPublic {
+  id: string;
+  displayName: string;
+  email: string;
+  photoUrl?: string;
+  phone?: string;
+  country?: string;
+  createdAt: Date;
+}
+
+export interface Doctor {
+  id: string;
+  tenantId: string;
+  userId: string;
+  licenseNo: string;
+  specialties: string[];
+  active: boolean;
+  capacity: number; // hours per week
+  settings?: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Patient Types
+export type PatientStatus = 'new-lead' | 'lead' | 'consulted' | 'quoted' | 'booked' | 'completed' | 'cancelled';
+export type FunnelStage = 'lead' | 'NEW' | 'CONTACTED' | 'CONSULTED' | 'PROPOSAL_SENT' | 'NEGOTIATING' | 'SCHEDULED' | 'COMPLETED';
+
+export interface PatientMilestones {
+  consultDate?: Date | null;
+  proposalSentDate?: Date | null;
+  surgeryDate?: Date | null;
+  followUpDate?: Date | null;
+}
+
+export interface Patient {
+  id: string;
+  tenantId: string;
+  primaryDoctorId: string;
+  status: PatientStatus;
+  funnelStage: FunnelStage;
+  leadSource?: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  age?: number;
+  gender?: 'male' | 'female' | 'other';
+  address?: string;
+  dateOfBirth?: Date;
+  sharedCare: boolean;
+  consentIds?: string[];
+  notes?: string;
+  medicalNotes?: string;
+  beforeImageUrl?: string;
+  afterImageUrl?: string;
+  // Extended AI imaging fields (multi-variant support)
+  afterImageUrls?: string[];
+  afterImageStyles?: string[];
+  assessment?: {
+    hairlineRecession?: string;
+    hairDensity?: string;
+    donorAreaQuality?: string;
+    scalpLaxity?: string;
+    estimatedGrafts?: string;
+    recommendedTechnique?: string;
+  };
+  milestones?: PatientMilestones;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Imaging Types
+export interface ImagingSession {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  poses: ImagePose[];
+  captureQuality: number; // 0-100
+  createdAt: Date;
+  processedAt?: Date;
+}
+
+export interface ImagePose {
+  type: 'FRONT' | 'LEFT' | 'RIGHT' | 'TOP' | 'CROWN';
+  assetId: string;
+  capturedAt: Date;
+}
+
+export interface ImageAsset {
+  id: string;
+  sessionId: string;
+  type: 'RAW' | 'SIMULATED';
+  url: string;
+  thumbnailUrl?: string;
+  metadata: {
+    width: number;
+    height: number;
+    density?: string;
+    hairlineShape?: string;
+    quality?: number;
+  };
+  createdAt: Date;
+}
+
+// Quote and Proposal Types
+export type QuoteStatus = 'DRAFT' | 'SENT' | 'VIEWED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+
+export interface Quote {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  doctorId: string;
+  items: QuoteItem[];
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  currency: string;
+  validity: number; // days
+  status: QuoteStatus;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface QuoteItem {
+  zone: string;
+  graftCount: number;
+  unitPrice: number;
+  total: number;
+  notes?: string;
+}
+
+export interface Proposal {
+  id: string;
+  tenantId: string;
+  quoteId: string;
+  pdfUrl?: string;
+  status: 'DRAFT' | 'SENT' | 'VIEWED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  sentAt?: Date;
+  viewedAt?: Date;
+  acceptedAt?: Date;
+  expiryAt: Date;
+  signerName?: string;
+  signerEmail?: string;
+  createdAt: Date;
+}
+
+// Appointment Types
+export type AppointmentType = 'CONSULT' | 'SURGERY' | 'FOLLOWUP' | 'PROPOSAL';
+export type AppointmentStatus = 'HOLD' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+export interface Appointment {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  doctorId: string;
+  doctorName?: string;
+  patientName?: string;
+  type: AppointmentType;
+  status: AppointmentStatus;
+  start: Date;
+  end: Date;
+  startTime?: Date; // Alias for start
+  endTime?: Date; // Alias for end
+  roomId?: string;
+  teamIds: string[];
+  holdExpiresAt?: Date;
+  depositStatus?: 'PENDING' | 'PAID' | 'REFUNDED';
+  notes?: string;
+  autoGenerated?: boolean;
+  source?: 'PATIENT_MILESTONE' | 'MANUAL';
+  milestoneType?: keyof PatientMilestones;
+  milestoneLabel?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Surgery Case Types
+export interface SurgeryCase {
+  id: string;
+  tenantId: string;
+  appointmentId: string;
+  patientId: string;
+  doctorId: string;
+  graftsHarvested: number;
+  graftsPlaced: number;
+  zones: string[];
+  medications: string[];
+  complications?: string;
+  notes?: string;
+  photosRefs: string[];
+  createdAt: Date;
+  completedAt: Date;
+}
+
+// Analytics Types
+export interface AnalyticsDaily {
+  id: string; // YYYYMMDD format
+  tenantId: string;
+  date: Date;
+  consults: number;
+  proposalsSent: number;
+  proposalsViewed: number;
+  surgeries: number;
+  graftsPlaced: number;
+  revenue: number;
+  leadsSourceMap: Record<string, number>;
+  createdAt: Date;
+}
+
+export interface AnalyticsDoctorDaily {
+  id: string; // doctorId_YYYYMMDD
+  tenantId: string;
+  doctorId: string;
+  date: Date;
+  consults: number;
+  proposalsSent: number;
+  proposalsViewed: number;
+  surgeries: number;
+  graftsPlaced: number;
+  revenue: number;
+  createdAt: Date;
+}
+
+// Communication Types
+export type CommunicationChannel = 'EMAIL' | 'SMS';
+export type CommunicationStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | 'OPENED' | 'CLICKED';
+
+export interface Communication {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  channel: CommunicationChannel;
+  to: string;
+  subject?: string;
+  body: string;
+  provider: string;
+  providerMessageId?: string;
+  status: CommunicationStatus;
+  sentAt?: Date;
+  deliveredAt?: Date;
+  openedAt?: Date;
+  clickedAt?: Date;
+  createdAt: Date;
+}
+
+// Calendar Resource Types
+export type ResourceType = 'ROOM' | 'CHAIR' | 'TECHNICIAN' | 'EQUIPMENT';
+
+export interface CalendarResource {
+  id: string;
+  tenantId: string;
+  name: string;
+  type: ResourceType;
+  availability: string; // JSON string of availability rules
+  color: string;
+  active: boolean;
+  createdAt: Date;
+}
+
+// Audit Log Types
+export interface AuditLog {
+  id: string;
+  tenantId: string;
+  actorUserId: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  changes?: Record<string, any>;
+  ip?: string;
+  userAgent?: string;
+  timestamp: Date;
+}

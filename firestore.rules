@@ -1,0 +1,193 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    // Check if user is a member of a tenant
+    function isTenantMember(tenantId) {
+      return exists(/databases/$(database)/documents/tenants/$(tenantId)/tenantMembers/$(getUserId()));
+    }
+    
+    // Get user's role in a tenant
+    function getTenantMemberData(tenantId) {
+      return get(/databases/$(database)/documents/tenants/$(tenantId)/tenantMembers/$(getUserId())).data;
+    }
+    
+    function hasRole(tenantId, roles) {
+      return isTenantMember(tenantId) && getTenantMemberData(tenantId).role in roles;
+    }
+    
+    function isOwnerOrAdmin(tenantId) {
+      return hasRole(tenantId, ['OWNER', 'ADMIN']);
+    }
+    
+    function isDoctor(tenantId) {
+      return hasRole(tenantId, ['DOCTOR']);
+    }
+    
+    function isCoordinator(tenantId) {
+      return hasRole(tenantId, ['COORDINATOR']);
+    }
+    
+    function isFinance(tenantId) {
+      return hasRole(tenantId, ['FINANCE']);
+    }
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Public user data
+    match /usersPublic/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && userId == getUserId();
+    }
+
+    // Tenants - read only for members
+    match /tenants/{tenantId} {
+      allow read: if isSignedIn() && isTenantMember(tenantId);
+      allow write: if isOwnerOrAdmin(tenantId);
+      
+      // Tenant members
+      match /tenantMembers/{memberId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if isOwnerOrAdmin(tenantId);
+      }
+      
+      // Doctors
+      match /doctors/{doctorId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if isOwnerOrAdmin(tenantId);
+      }
+      
+      // Patients
+      match /patients/{patientId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isCoordinator(tenantId) ||
+          (isDoctor(tenantId) && (
+            resource.data.primaryDoctorId == getUserId() ||
+            resource.data.sharedCare == true
+          ))
+        );
+        
+        allow create: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isCoordinator(tenantId) ||
+          isDoctor(tenantId)
+        );
+        
+        allow update, delete: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isCoordinator(tenantId) ||
+          (isDoctor(tenantId) && resource.data.primaryDoctorId == getUserId())
+        );
+        
+        // Imaging sessions
+        match /imagingSessions/{sessionId} {
+          allow read, write: if isSignedIn() && isTenantMember(tenantId) && (
+            isOwnerOrAdmin(tenantId) ||
+            isCoordinator(tenantId) ||
+            isDoctor(tenantId)
+          );
+          
+          // Image assets
+          match /assets/{assetId} {
+            allow read, write: if isSignedIn() && isTenantMember(tenantId) && (
+              isOwnerOrAdmin(tenantId) ||
+              isCoordinator(tenantId) ||
+              isDoctor(tenantId)
+            );
+          }
+        }
+      }
+      
+      // Quotes
+      match /quotes/{quoteId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isDoctor(tenantId) ||
+          isCoordinator(tenantId)
+        );
+      }
+      
+      // Proposals
+      match /proposals/{proposalId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isDoctor(tenantId) ||
+          isCoordinator(tenantId)
+        );
+      }
+      
+      // Appointments
+      match /appointments/{apptId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isDoctor(tenantId) ||
+          isCoordinator(tenantId)
+        );
+      }
+      
+      // Surgery cases
+      match /surgeryCases/{caseId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isDoctor(tenantId)
+        );
+        allow write: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isDoctor(tenantId)
+        );
+      }
+      
+      // Analytics - clinic level (only aggregates, no PII)
+      match /analyticsDaily/{dayId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if false; // Only via Cloud Functions
+      }
+      
+      // Analytics - doctor level (doctors can only see their own)
+      match /analyticsDoctorDaily/{dayId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          (isDoctor(tenantId) && resource.data.doctorId == getUserId())
+        );
+        allow write: if false; // Only via Cloud Functions
+      }
+      
+      // Communications
+      match /communications/{messageId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if isSignedIn() && isTenantMember(tenantId) && (
+          isOwnerOrAdmin(tenantId) ||
+          isCoordinator(tenantId)
+        );
+      }
+      
+      // Calendar resources
+      match /calendarResources/{resourceId} {
+        allow read: if isSignedIn() && isTenantMember(tenantId);
+        allow write: if isOwnerOrAdmin(tenantId);
+      }
+      
+      // Audit logs - read only for owners
+      match /auditLogs/{logId} {
+        allow read: if isOwnerOrAdmin(tenantId);
+        allow write: if false; // Only via Cloud Functions
+      }
+    }
+  }
+}

@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 0 0% 7%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 97%;
+    --secondary-foreground: 0 0% 7%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 0 0% 7%;
+    --radius: 0.9rem;
+  --brand: 142 72% 42%;
+  }
+
+  .dark {
+    --background: 0 0% 18%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 22%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 24%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 14%;
+    --secondary: 0 0% 28%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 30%;
+    --muted-foreground: 0 0% 78%;
+    --accent: 0 0% 30%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 44%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 34%;
+    --input: 0 0% 34%;
+    --ring: 0 0% 82%;
+  --brand: 142 70% 48%;
+  }
+
+  * { border-color: hsl(var(--border)); }
+  html, body, #root { background-color: hsl(var(--background)); color: hsl(var(--foreground)); background-image: none !important; }
+}
+
+body { background-attachment: initial; background-image: none !important; }
+
+.glass {
+  background: linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0.08));
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.06) inset;
+}
+.dark .glass {
+  background: linear-gradient(180deg, rgba(30,30,30,0.8), rgba(20,20,20,0.6));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 10px 36px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.05) inset;
+}
+
+.glass-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+}
+.dark .glass-card {
+  background: linear-gradient(180deg, rgba(36,36,36,0.82), rgba(28,28,28,0.72));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.44);
+}
+
+.neo-border { position: relative; border-radius: calc(var(--radius) + 2px); }
+.neo-border::before {
+  /* Remove diagonal overlay to ensure perfectly flat backgrounds */
+  content: ""; position: absolute; inset: -1px; border-radius: inherit;
+  background: none !important; filter: none !important; opacity: 0 !important; z-index: -1;
+}
+.neo-glow { box-shadow: 0 12px 32px rgba(0,0,0,0.18), 0 3px 12px rgba(0,0,0,0.14); }
+
+.neo-button {
+  border-radius: calc(var(--radius) + 6px);
+  background: linear-gradient(180deg, hsl(var(--brand)/0.25), hsl(var(--brand)/0.18));
+  border: 1px solid hsl(var(--brand)/0.45);
+  box-shadow: 0 12px 34px hsl(var(--brand)/0.28), inset 0 1px 0 rgba(255,255,255,0.25);
+  transition: box-shadow 180ms ease, transform 120ms ease, background 180ms ease;
+}
+.neo-button:hover {
+  background: linear-gradient(180deg, hsl(var(--brand)/0.32), hsl(var(--brand)/0.24));
+  box-shadow: 0 18px 46px hsl(var(--brand)/0.34), 0 0 0 4px hsl(var(--brand)/0.16);
+  transform: translateY(-1px);
+}
+.neo-button:focus-visible { outline: none; box-shadow: 0 0 0 3px hsl(var(--background)), 0 0 0 5px hsl(var(--brand)/0.65); }
+
+.neo-input {
+  border-radius: calc(var(--radius) + 4px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.5));
+  border: 1px solid rgba(0,0,0,0.08);
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+.dark .neo-input { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)); border: 1px solid rgba(255,255,255,0.08); }
+.neo-input:focus { outline: none; border-color: hsl(var(--brand)/0.55); box-shadow: 0 0 0 4px hsl(var(--brand)/0.18); }
+
+.bg-app {
+  /* Neutralize decorative gradients for a flat look */
+  background: hsl(var(--background));
+  background-image: none !important;
+}
+
+.nav-active {
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,245,245,0.78));
+  border: 1px solid hsl(var(--brand)/0.55);
+  box-shadow: 0 0 18px hsl(var(--brand)/0.28), 0 4px 12px rgba(0,0,0,0.12);
+  color: hsl(var(--foreground));
+}
+.dark .nav-active {
+  background: linear-gradient(180deg, rgba(46, 46, 46, 0.92), rgba(36, 36, 36, 0.82));
+  border: 1px solid hsl(var(--brand)/0.5);
+  box-shadow: 0 0 20px hsl(var(--brand)/0.32), 0 6px 16px rgba(0,0,0,0.35);
+  color: hsl(var(--foreground));
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)/0.5); }
