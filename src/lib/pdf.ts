@@ -111,7 +111,7 @@ export async function generatePatientPdf(payload: PatientPdfPayload): Promise<Bl
     doc.setFontSize(12);
     doc.setTextColor(34);
 
-    lines.forEach((line) => {
+    lines.forEach((line: string) => {
       if (cursorY + lineHeight > footerY - 30) {
         drawFooter();
         doc.addPage();

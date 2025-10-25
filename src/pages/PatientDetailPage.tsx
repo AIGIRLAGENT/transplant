@@ -1496,7 +1496,7 @@ export function PatientDetailPage() {
                         <p className="font-semibold">{apt.milestoneLabel || apt.type} {apt.doctorName ? `with ${apt.doctorName}` : ''}</p>
                         <p className="text-sm text-muted-foreground flex items-center gap-2">
                           <Clock className="h-3 w-3" />
-                          {formatDateTime(apt.startTime)}
+                          {formatDateTime(apt.startTime ?? apt.start)}
                         </p>
                       </div>
                     </div>
@@ -1530,7 +1530,7 @@ export function PatientDetailPage() {
                     color: 'text-blue-500' 
                   })),
                   ...appointments.filter(apt => apt.patientId === patientId).map(apt => ({
-                    date: formatDateTime(apt.startTime),
+                    date: formatDateTime(apt.startTime ?? apt.start),
                     event: apt.milestoneLabel || `${apt.type} Scheduled`,
                     icon: CalendarIcon,
                     color: 'text-primary'
