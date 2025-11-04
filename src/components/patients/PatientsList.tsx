@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/utils';
 import { generatePatientPdf } from '@/lib/pdf';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/hooks/use-toast';
 
 const statusColors = {
   'new-lead': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
@@ -31,6 +32,7 @@ export function PatientsList() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [hoveredImage, setHoveredImage] = useState<string | null>(null);
   const { tenant } = useTheme();
+  const { toast } = useToast();
 
   const { data: patients, isLoading } = usePatients({ search, status: statusFilter });
 
@@ -97,24 +99,33 @@ export function PatientsList() {
     if (tenant?.emailFrom) contactLines.push(`Email: ${tenant.emailFrom}`);
     if (tenant?.domain) contactLines.push(`Website: ${tenant.domain}`);
 
-    const blob = await generatePatientPdf({
-      patientName: `${patient.firstName} ${patient.lastName}`,
-      emailBody: emailText,
-      beforeImageUrl: patient.beforeImageUrl,
-      afterImageUrls: afterGallery,
-      clinicName: tenant?.name || 'Clinic',
-      clinicTagline: 'Advanced Hair Restoration & Patient Experience',
-      clinicLogoUrl: tenant?.logo || tenant?.themeObject?.logoUrl,
-      clinicContactLines: contactLines,
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Consultation_${patient.firstName || 'patient'}_${patient.lastName || ''}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    try {
+      const blob = await generatePatientPdf({
+        patientName: `${patient.firstName} ${patient.lastName}`.trim(),
+        emailBody: emailText,
+        beforeImageUrl: patient.beforeImageUrl,
+        afterImageUrls: afterGallery,
+        clinicName: tenant?.name || 'Clinic',
+        clinicTagline: 'Advanced Hair Restoration & Patient Experience',
+        clinicLogoUrl: tenant?.logo || tenant?.themeObject?.logoUrl,
+        clinicContactLines: contactLines,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Consultation_${patient.firstName || 'patient'}_${patient.lastName || ''}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('[PatientsList] Failed to generate PDF:', error);
+      toast({
+        variant: 'destructive',
+        title: 'PDF generation failed',
+        description: 'Please try again or refresh the page.',
+      });
+    }
   };
 
   return (

@@ -587,7 +587,7 @@ export function PatientDetailPage() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       toast({
         variant: 'destructive',
