@@ -6,15 +6,23 @@ import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
+const requireEnv = (key: keyof ImportMetaEnv): string => {
+  const value = import.meta.env[key];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${String(key)}`);
+  }
+  return value;
+};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCoyFYejvtWzSH2_PDwJ0JZUEn68uE-pIM",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "transplant-35461.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "transplant-35461",
+  apiKey: requireEnv('VITE_FIREBASE_API_KEY'),
+  authDomain: requireEnv('VITE_FIREBASE_AUTH_DOMAIN'),
+  projectId: requireEnv('VITE_FIREBASE_PROJECT_ID'),
   // Keep this for completeness; we'll pass the gs:// bucket explicitly to getStorage below.
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "transplant-35461.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "305267939101",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:305267939101:web:4b5606d26077dda696b3f4",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-ZZHPJH0PNR"
+  storageBucket: requireEnv('VITE_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: requireEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: requireEnv('VITE_FIREBASE_APP_ID'),
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
@@ -49,7 +57,7 @@ try {
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 // Explicitly target the bucket displayed in Firebase Console to avoid domain ambiguity
-const resolvedBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket).replace(/^gs:\/\//, '');
+const resolvedBucket = requireEnv('VITE_FIREBASE_STORAGE_BUCKET').replace(/^gs:\/\//, '');
 export const storage = getStorage(app, `gs://${resolvedBucket}`);
 export const functions = getFunctions(app);
 

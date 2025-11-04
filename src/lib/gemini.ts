@@ -46,7 +46,12 @@ function normalizeBase64(dataUrl: string) {
 }
 
 export async function generateEnhancedImage({ baseImage, prompt = defaultPrompt }: GenerateImageOptions): Promise<string> {
-  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GEMINI_KEY || '').trim();
+  const apiKey = (
+    import.meta.env.VITE_GEMINI_API_KEY
+    || import.meta.env.VITE_GEMINI_KEY
+    || import.meta.env.VITE_HAIR_SIM_API_KEY
+    || ''
+  ).trim();
   if (!apiKey) {
     throw new Error('Missing Gemini API key. Set VITE_GEMINI_API_KEY in your environment.');
   }

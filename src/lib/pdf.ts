@@ -16,8 +16,11 @@ export interface PatientPdfPayload {
 
 const lineHeight = 16;
 
-const resolveFormat = (dataUrl: string): 'PNG' | 'JPEG' =>
-  dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+const resolveFormat = (dataUrl: string): 'PNG' | 'JPEG' | 'WEBP' => {
+  if (dataUrl.startsWith('data:image/png')) return 'PNG';
+  if (dataUrl.startsWith('data:image/webp')) return 'WEBP';
+  return 'JPEG';
+};
 
 export async function generatePatientPdf(payload: PatientPdfPayload): Promise<Blob> {
   const {
